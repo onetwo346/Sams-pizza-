@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pizza Delivery Dash</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #87CEEB;
+            font-family: Arial, sans-serif;
+        }
+        #gameCanvas {
+            border: 2px solid #333;
+            background-color: #7CFC00;
+        }
+        #score {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 20px;
+            color: white;
+            text-shadow: 1px 1px 2px black;
+        }
+    </style>
+</head>
+<body>
+    <div id="score">Tips: $0 | Deliveries: 0</div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game variables
+        let player = {
+            x: 50,
+            y: 50,
+            width: 40,
+            height: 20,
+            speed: 5,
+            dx: 0,
+            dy: 0
+        };
+        let deliveryPoints = [];
+        let obstacles = [];
+        let tips = 0;
+        let deliveries = 0;
+        let gameRunning = true;
+
+        // Controls
+        let keys = {
+            ArrowUp: false,
+            ArrowDown: false,
+            ArrowLeft: false,
+            ArrowRight: false
+        };
+
+        // Initialize game
+        function init() {
+            // Spawn delivery points
+            for (let i = 0; i < 3; i++) {
+                deliveryPoints.push({
+                    x: Math.random() * (canvas.width - 30),
+                    y: Math.random() * (canvas.height - 30),
+                    width: 30,
+                    height: 30,
+                    delivered: false
+                });
+            }
+
+            // Spawn obstacle (e.g., skateboarder)
+            obstacles.push({
+                x: canvas.width / 2,
+                y: canvas.height / 2,
+                width: 20,
+                height: 20,
+                speed: 2,
+                direction: Math.random() * 2 * Math.PI
+            });
+        }
+
+        // Draw player (scooter)
+        function drawPlayer() {
+            ctx.fillStyle = 'red';
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            ctx.fillStyle = 'black';
+            ctx.fillRect(player.x + player.width - 10, player.y + 5, 5, 10); // Wheel
+            ctx.fillRect(player.x + 5, player.y + 5, 5, 10); // Wheel
+        }
+
+        // Draw delivery points (houses)
+        function drawDeliveryPoints() {
+            deliveryPoints.forEach(point => {
+                if (!point.delivered) {
+                    ctx.fillStyle = 'brown';
+                    ctx.fillRect(point.x, point.y, point.width, point.height);
+                    ctx.fillStyle = 'yellow';
+                    ctx.fillRect(point.x + 10, point.y + 5, 10, 10); // Window
+                }
+            });
+        }
+
+        // Draw obstacles (skateboarder)
+        function drawObstacles() {
+            obstacles.forEach(obstacle => {
+                ctx.fillStyle = 'purple';
+                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+            });
+        }
+
+        // Update player position
+        function updatePlayer() {
+            player.dx = 0;
+            player.dy = 0;
+
+            if (keys.ArrowUp) player.dy = -player.speed;
+            if (keys.ArrowDown) player.dy = player.speed;
+            if (keys.ArrowLeft) player.dx = -player.speed;
+            if (keys.ArrowRight) player.dx = player.speed;
+
+            player.x += player.dx;
+            player.y += player.dy;
+
+            // Keep player in bounds
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > canvas.width) player.x = canvas.width - player.width;
+            if (player.y < 0) player.y = 0;
+            if (player.y + player.height > canvas.height) player.y = canvas.height - player.height;
+        }
+
+        // Update obstacles
+        function updateObstacles() {
+            obstacles.forEach(obstacle => {
+                obstacle.x += Math.cos(obstacle.direction) * obstacle.speed;
+                obstacle.y += Math.sin(obstacle.direction) * obstacle.speed;
+
+                // Bounce off walls
+                if (obstacle.x < 0 || obstacle.x + obstacle.width > canvas.width) {
+                    obstacle.direction = Math.PI - obstacle.direction;
+                }
+                if (obstacle.y < 0 || obstacle.y + obstacle.height > canvas.height) {
+                    obstacle.direction = -obstacle.direction;
+                }
+
+                // Collision with player
+                if (collides(player, obstacle)) {
+                    tips = Math.max(0, tips - 5); // Lose tips on collision
+                }
+            });
+        }
+
+        // Check collisions
+        function collides(a, b) {
+            return a.x < b.x + b.width &&
+                   a.x + a.width > b.x &&
+                   a.y < b.y + b.height &&
+                   a.y + a.height > b.y;
+        }
+
+        // Handle deliveries
+        function checkDeliveries() {
+            deliveryPoints.forEach(point => {
+                if (!point.delivered && collides(player, point)) {
+                    point.delivered = true;
+                    tips += 10;
+                    deliveries++;
+                }
+            });
+        }
+
+        // Update score display
+        function updateScore() {
+            document.getElementById('score').textContent = `Tips: $${tips} | Deliveries: ${deliveries}`;
+        }
+
+        // Main game loop
+        function gameLoop() {
+            if (!gameRunning) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            updatePlayer();
+            updateObstacles();
+            checkDeliveries();
+
+            drawPlayer();
+            drawDeliveryPoints();
+            drawObstacles();
+
+            updateScore();
+
+            // Check win condition
+            if (deliveries === deliveryPoints.length) {
+                gameRunning = false;
+                ctx.fillStyle = 'white';
+                ctx.font = '40px Arial';
+                ctx.fillText('You Saved SamG’s Pizza!', canvas.width / 4, canvas.height / 2);
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Event listeners for controls
+        document.addEventListener('keydown', (e) => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+        });
+        document.addEventListener('keyup', (e) => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
+        });
+
+        // Start the game
+        init();
+        gameLoop();
+    </script>
+</body>
+</html>
