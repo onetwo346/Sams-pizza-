@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ghostly Janitor</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+        #stamina { position: absolute; top: 10px; left: 10px; color: white; font-family: Arial; }
+        #message { position: absolute; top: 40px; left: 10px; color: white; font-family: Arial; }
+    </style>
+</head>
+<body>
+    <div id="stamina">Stamina: 100</div>
+    <div id="message">Clean the trash!</div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script>
+        // Scene Setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffffff, 1, 100);
+        pointLight.position.set(0, 10, 0);
+        scene.add(pointLight);
+
+        // Floor (Classroom)
+        const floorGeometry = new THREE.PlaneGeometry(20, 20);
+        const floorMaterial = new THREE.MeshBasicMaterial({ color: 0x808080 });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        scene.add(floor);
+
+        // Player (Janitor)
+        const playerGeometry = new THREE.BoxGeometry(1, 2, 1);
+        const playerMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+        const player = new THREE.Mesh(playerGeometry, playerMaterial);
+        player.position.y = 1;
+        scene.add(player);
+
+        // Broom (Attached to Player)
+        const broomGeometry = new THREE.CylinderGeometry(0.1, 0.1, 2);
+        const broomMaterial = new THREE.MeshBasicMaterial({ color: 0x8b4513 });
+        const broom = new THREE.Mesh(broomGeometry, broomMaterial);
+        broom.position.set(0.5, 0.5, 0);
+        player.add(broom);
+
+        // Trash (Mess to Clean)
+        const trashGeometry = new THREE.SphereGeometry(0.5, 16, 16);
+        const trashMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        const trash = new THREE.Mesh(trashGeometry, trashMaterial);
+        trash.position.set(3, 0.5, 3);
+        scene.add(trash);
+
+        // Ghost (Prankster)
+        const ghostGeometry = new THREE.SphereGeometry(1, 16, 16);
+        const ghostMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.7 });
+        const ghost = new THREE.Mesh(ghostGeometry, ghostMaterial);
+        ghost.position.set(-3, 1, -3);
+        scene.add(ghost);
+
+        // Alien Probe (Endgame Hint)
+        const probeGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+        const probeMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const probe = new THREE.Mesh(probeGeometry, probeMaterial);
+        probe.position.set(0, 0.5, -5);
+        scene.add(probe);
+
+        // Camera Position
+        camera.position.set(0, 5, 10);
+        camera.lookAt(player.position);
+
+        // Game State
+        let stamina = 100;
+        let trashCleaned = false;
+        let ghostSpeed = 0.05;
+        let message = "Clean the trash!";
+
+        // Controls
+        const keys = {};
+        document.addEventListener("keydown", (e) => keys[e.key] = true);
+        document.addEventListener("keyup", (e) => keys[e.key] = false);
+
+        // Mobile Tap Controls
+        let touchStartX = 0;
+        let touchStartY = 0;
+        document.addEventListener("touchstart", (e) => {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        });
+        document.addEventListener("touchmove", (e) => {
+            const deltaX = e.touches[0].clientX - touchStartX;
+            const deltaY = e.touches[0].clientY - touchStartY;
+            player.position.x += deltaX * 0.01;
+            player.position.z += deltaY * 0.01;
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        });
+
+        // Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Player Movement (PC)
+            if (keys["w"]) player.position.z -= 0.1;
+            if (keys["s"]) player.position.z += 0.1;
+            if (keys["a"]) player.position.x -= 0.1;
+            if (keys["d"]) player.position.x += 0.1;
+
+            // Keep Player in Bounds
+            player.position.x = Math.max(-9, Math.min(9, player.position.x));
+            player.position.z = Math.max(-9, Math.min(9, player.position.z));
+
+            // Ghost Movement (Prank)
+            ghost.position.x += Math.sin(Date.now() * 0.001) * ghostSpeed;
+            ghost.position.z += Math.cos(Date.now() * 0.001) * ghostSpeed;
+            if (Math.abs(player.position.distanceTo(ghost.position)) < 2) {
+                stamina -= 0.5; // Ghost prank drains stamina
+                message = "Dodge the ghost!";
+            }
+
+            // Cleaning Trash
+            if (Math.abs(player.position.distanceTo(trash.position)) < 1.5 && !trashCleaned) {
+                scene.remove(trash);
+                trashCleaned = true;
+                message = "Trash cleaned! Find the probe clue...";
+            }
+
+            // Probe Interaction (Story Hint)
+            if (Math.abs(player.position.distanceTo(probe.position)) < 1.5) {
+                message = "The probe hums: 'We didn’t mean to break it…'";
+            }
+
+            // Stamina Management
+            stamina = Math.max(0, Math.min(100, stamina - 0.1));
+            if (stamina <= 0) message = "Out of stamina! Game Over.";
+
+            // Update UI
+            document.getElementById("stamina").innerText = `Stamina: ${Math.floor(stamina)}`;
+            document.getElementById("message").innerText = message;
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Resize Handling
+        window.addEventListener("resize", () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
